@@ -1,2 +1,2 @@
 --alfa, epsilon, gamma
-return 1, 1, 0
+return 0.8, 0.9, 0.5
