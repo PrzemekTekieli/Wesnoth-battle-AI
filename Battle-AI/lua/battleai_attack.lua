@@ -7,7 +7,6 @@ function QLearner(data)
 	if not data.Q then
 		data.alfa, data.epsilon, data.gamma = wesnoth.dofile("~add-ons/Battle-AI/lua/battleai_params.lua")
 		data.Q = wesnoth.dofile("~add-ons/Battle-AI/lua/battleai_knowledge.lua")
-		-- TODO state/action
 	
 		data.alfa_decay = 0.95
 		data.epsilon_decay = 0.95
@@ -126,14 +125,25 @@ end
 -- return attacker, target, n_weapon, dest.x, dest.y
 function best_action(data)
 	local max_rating = -1
+	local disc_value = 5
 	local attackers = AH.get_units_with_attacks {side = wesnoth.current.side}
 	for _,attacker in ipairs(attackers) do -- try every possible attacker for current side
 		local attacks = AH.get_attacks({attacker})
+		local attacker_copy = wesnoth.copy_unit(attacker)
+
 		for _,attack in ipairs(attacks) do -- try every possible attack for given attacker
+			attacker_copy.x = attack.dst.x
+			attacker_copy.y = attack.dst.y
+			
 			local target = wesnoth.get_unit(attack.target) -- get enemy
 			for n_weapon,weapon in ipairs(attacker.attacks) do -- try every type of unit weapon
 				-- get score for given attack from current knowledge
-				local rating = data.Q[attacker.type .. "_" .. target.type .. "_" .. n_weapon .. "_" .. get_defence_at_location(attacker, attack.dst.x, attack.dst.y) .. "_" .. get_defence(target)]
+				local attacker_hp, attacker_dmg_1, attacker_dmg_2 = discretize_unit(attacker, disc_value, disc_value)
+				local target_hp, target_dmg_1, target_dmg_2 = discretize_unit(target, disc_value, disc_value)
+				local state = attacker_hp .. "_" .. attacker_dmg_1 .. "_" .. attacker_dmg_2
+				local action = target_hp .. "_" .. target_dmg_1 .. "_" .. target_dmg_2 .. "_" .. get_defence(attacker_copy) .. "_" .. get_defence(target)
+
+				local rating = data.Q[state][action]
 				
 				if rating and rating >= max_rating then
 					-- prioritize standing unit in one place
@@ -147,6 +157,7 @@ function best_action(data)
 	end
 	-- return best found action based on knowledge or random action if no knowledge found
 	if max_rating > -1 then
+		std_print("best")
 		return best_attacker, best_target, best_weapon, best_x, best_y
 	elseif #attackers > 0 then
 		return random_action()
@@ -169,7 +180,8 @@ function random_action()
 	local attack = attacks[math.ceil(math.random() * #attacks)]
 	local target = wesnoth.get_unit(attack.target)
 	local n_weapon = math.ceil(math.random() * #attacker.attacks)
-		
+	
+	std_print("random")
 	return attacker, target, n_weapon, attack.dst.x, attack.dst.y
 end
 
